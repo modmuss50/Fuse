@@ -75,7 +75,7 @@ public class FuseClassTransformer implements IClassTransformer {
 	}
 
 	//Finds method node in clsss //TODO check desc
-	MethodNode findMethodNode(String name, ClassNode targetNode) {
+	public static MethodNode findMethodNode(String name, ClassNode targetNode) {
 		for (MethodNode node : targetNode.methods) {
 			if (node.name.equals(name)) {
 				return node;
@@ -84,15 +84,15 @@ public class FuseClassTransformer implements IClassTransformer {
 		return null;
 	}
 
-	AbstractInsnNode findFirstInstruction(MethodNode method) {
+	public static AbstractInsnNode findFirstInstruction(MethodNode method) {
 		return getOrFindInstruction(method.instructions.getFirst());
 	}
 
-	AbstractInsnNode getOrFindInstruction(AbstractInsnNode firstInsnToCheck) {
+	public static AbstractInsnNode getOrFindInstruction(AbstractInsnNode firstInsnToCheck) {
 		return getOrFindInstruction(firstInsnToCheck, false);
 	}
 
-	AbstractInsnNode getOrFindInstruction(AbstractInsnNode firstInsnToCheck, boolean reverseDirection) {
+	public static AbstractInsnNode getOrFindInstruction(AbstractInsnNode firstInsnToCheck, boolean reverseDirection) {
 		for (AbstractInsnNode instruction = firstInsnToCheck; instruction != null; instruction = reverseDirection ? instruction.getPrevious() : instruction.getNext()) {
 			if (instruction.getType() != AbstractInsnNode.LABEL && instruction.getType() != AbstractInsnNode.LINE)
 				return instruction;
@@ -101,13 +101,13 @@ public class FuseClassTransformer implements IClassTransformer {
 	}
 
 	//Removes the last return instuction from the InsnList
-	InsnList removeLastReturnInsn(InsnList instructions) {
+	public static InsnList removeLastReturnInsn(InsnList instructions) {
 		instructions.remove(findLastReturnInsn(instructions));
 		return instructions;
 	}
 
 	//Finds the last return InsnNode, is this the right way to do it?
-	AbstractInsnNode findLastReturnInsn(InsnList instructions) {
+	public static AbstractInsnNode findLastReturnInsn(InsnList instructions) {
 		final AbstractInsnNode[] returnValue = { null };
 		instructions.iterator().forEachRemaining(abstractInsnNode -> {
 			if (abstractInsnNode instanceof InsnNode) {
@@ -122,7 +122,7 @@ public class FuseClassTransformer implements IClassTransformer {
 
 	//Injects an InsnList into the end of another InsnList
 	//TODO this doesnt feel right at all
-	InsnList injectAfterInsnReturn(InsnList targetList, InsnList sourceList) {
+	public static InsnList injectAfterInsnReturn(InsnList targetList, InsnList sourceList) {
 		AbstractInsnNode lastReturn = null;
 		for (AbstractInsnNode abstractInsnNode : targetList.toArray()) {
 			if (abstractInsnNode instanceof InsnNode) {
@@ -137,7 +137,7 @@ public class FuseClassTransformer implements IClassTransformer {
 	}
 
 	//Renames the method and field calls from the mixin class to the target class
-	InsnList renameInstructions(InsnList list, ClassNode mixinNode, ClassNode targetNode) {
+	public static InsnList renameInstructions(InsnList list, ClassNode mixinNode, ClassNode targetNode) {
 		list.iterator().forEachRemaining(abstractInsnNode -> {
 			if (abstractInsnNode instanceof FieldInsnNode) {
 				((FieldInsnNode) abstractInsnNode).owner = ((FieldInsnNode) abstractInsnNode).owner.replace(mixinNode.name.replace(".", "/"), targetNode.name.replace(".", "/"));
@@ -151,7 +151,7 @@ public class FuseClassTransformer implements IClassTransformer {
 
 	//My amtempt at building an InsnList for the field values
 	//TODO fix me
-	InsnList buildConstructorInstructions(ClassNode mixinNode) {
+	public static InsnList buildConstructorInstructions(ClassNode mixinNode) {
 		InsnList insnList = new InsnList();
 		insnList.add(findMethodNode("<init>", mixinNode).instructions);
 		cleanLableNode(insnList);
@@ -171,7 +171,7 @@ public class FuseClassTransformer implements IClassTransformer {
 	}
 
 	//I dont even think this is a good idea, so I should remove it
-	InsnList cleanLableNode(InsnList insnList) {
+	public static InsnList cleanLableNode(InsnList insnList) {
 		insnList.iterator().forEachRemaining(abstractInsnNode -> {
 			if (abstractInsnNode instanceof LabelNode || abstractInsnNode instanceof LineNumberNode) {
 				insnList.remove(abstractInsnNode);
@@ -181,7 +181,7 @@ public class FuseClassTransformer implements IClassTransformer {
 	}
 
 	//Gets an annoation
-	AnnotationNode getAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass) {
+	public static AnnotationNode getAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass) {
 		if (annotationNodeList == null || annotationNodeList.isEmpty()) {
 			return null;
 		}
@@ -193,12 +193,12 @@ public class FuseClassTransformer implements IClassTransformer {
 		return null;
 	}
 
-	boolean hasAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass) {
+	public static boolean hasAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass) {
 		return getAnnoation(annotationNodeList, annoationClass) != null;
 	}
 
 	//Gets the value for an annoation
-	Object getAnnoationValue(AnnotationNode node, String keyName) {
+	public static Object getAnnoationValue(AnnotationNode node, String keyName) {
 		for (int i = 0; i < node.values.size() - 1; i++) {
 			Object key = node.values.get(i);
 			Object value = node.values.get(i + 1);
