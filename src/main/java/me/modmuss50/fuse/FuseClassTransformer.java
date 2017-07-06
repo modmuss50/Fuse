@@ -2,9 +2,10 @@ package me.modmuss50.fuse;
 
 import me.modmuss50.fuse.api.Inject;
 import me.modmuss50.fuse.api.MethodEdit;
-import net.fabricmc.base.transformer.ASMUtils;
 import net.minecraft.launchwrapper.IClassTransformer;
 import net.minecraft.launchwrapper.Launch;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
@@ -24,12 +25,12 @@ public class FuseClassTransformer implements IClassTransformer {
 		if (mixinNames.isEmpty()) {
 			return basicClass;
 		}
-		ClassNode targetNode = ASMUtils.readClassFromBytes(basicClass);
+		ClassNode targetNode = readClassFromBytes(basicClass);
 		System.out.println("Found " + mixinNames.size() + " mixins for " + name);
 		Set<ClassNode> mixinNodes = new LinkedHashSet<>();
 		mixinNames.forEach(s -> {
 			try {
-				mixinNodes.add(ASMUtils.readClassFromBytes(Launch.classLoader.getClassBytes(s)));
+				mixinNodes.add(readClassFromBytes(Launch.classLoader.getClassBytes(s)));
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -60,7 +61,7 @@ public class FuseClassTransformer implements IClassTransformer {
 				}
 			}
 		}
-		return ASMUtils.writeClassToBytes(targetNode);
+		return writeClassToBytes(targetNode);
 	}
 
 	MethodNode findTargetMethodNode(String name, ClassNode targetNode) {
@@ -194,6 +195,19 @@ public class FuseClassTransformer implements IClassTransformer {
 			}
 		}
 		return null;
+	}
+
+	public static ClassNode readClassFromBytes(byte[] bytes) {
+		ClassNode classNode = new ClassNode();
+		ClassReader classReader = new ClassReader(bytes);
+		classReader.accept(classNode, 0);
+		return classNode;
+	}
+
+	public static byte[] writeClassToBytes(ClassNode classNode) {
+		ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
+		classNode.accept(writer);
+		return writer.toByteArray();
 	}
 
 }
