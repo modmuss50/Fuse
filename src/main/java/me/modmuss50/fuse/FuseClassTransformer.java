@@ -21,7 +21,7 @@ public class FuseClassTransformer implements IClassTransformer {
 	@Override
 	public byte[] transform(String name, String transformedName, byte[] basicClass) {
 		Set<String> mixinNames = FuseManager.getMixinsForClass(name);
-		if(mixinNames.isEmpty()){
+		if (mixinNames.isEmpty()) {
 			return basicClass;
 		}
 		ClassNode targetNode = ASMUtils.readClassFromBytes(basicClass);
@@ -34,28 +34,28 @@ public class FuseClassTransformer implements IClassTransformer {
 				e.printStackTrace();
 			}
 		});
-		for(ClassNode mixinNode : mixinNodes){
-			for(MethodNode mixinMethodNode : mixinNode.methods){
-				if(hasAnnoation(mixinMethodNode.visibleAnnotations, MethodEdit.class)){
+		for (ClassNode mixinNode : mixinNodes) {
+			for (MethodNode mixinMethodNode : mixinNode.methods) {
+				if (hasAnnoation(mixinMethodNode.visibleAnnotations, MethodEdit.class)) {
 					MethodNode targetMethodNode = findTargetMethodNode(mixinMethodNode.name, targetNode);
 					AnnotationNode annotationNode = getAnnoation(mixinMethodNode.visibleAnnotations, MethodEdit.class);
-					if(targetMethodNode != null){
-						if(getAnnoationValue(annotationNode, "location") == MethodEdit.Location.START){
+					if (targetMethodNode != null) {
+						if (getAnnoationValue(annotationNode, "location") == MethodEdit.Location.START) {
 							targetMethodNode.instructions.insertBefore(findFirstInstruction(targetMethodNode), renameInstructions(removeLastReturnInsn(mixinMethodNode.instructions), mixinNode, targetNode));
 						} else {
 							targetMethodNode.instructions = injectAfterInsnReturn(targetMethodNode.instructions, renameInstructions(mixinMethodNode.instructions, mixinNode, targetNode));
 						}
 
 					}
-				} else if(hasAnnoation(mixinMethodNode.visibleAnnotations, Inject.class)){
+				} else if (hasAnnoation(mixinMethodNode.visibleAnnotations, Inject.class)) {
 					MethodNode methodInject = new MethodNode(mixinMethodNode.access, mixinMethodNode.name, mixinMethodNode.desc, mixinMethodNode.signature, null);
 					methodInject.exceptions = mixinMethodNode.exceptions;
 					methodInject.instructions = renameInstructions(mixinMethodNode.instructions, mixinNode, targetNode);
 					targetNode.methods.add(methodInject);
 				}
 			}
-			for(FieldNode mixinFieldNode : mixinNode.fields){
-				if(hasAnnoation(mixinFieldNode.visibleAnnotations, Inject.class)){
+			for (FieldNode mixinFieldNode : mixinNode.fields) {
+				if (hasAnnoation(mixinFieldNode.visibleAnnotations, Inject.class)) {
 					targetNode.fields.add(mixinFieldNode);
 				}
 			}
@@ -63,9 +63,9 @@ public class FuseClassTransformer implements IClassTransformer {
 		return ASMUtils.writeClassToBytes(targetNode);
 	}
 
-	MethodNode findTargetMethodNode(String name, ClassNode targetNode){
-		for(MethodNode node : targetNode.methods){
-			if(node.name.equals(name)){
+	MethodNode findTargetMethodNode(String name, ClassNode targetNode) {
+		for (MethodNode node : targetNode.methods) {
+			if (node.name.equals(name)) {
 				return node;
 			}
 		}
@@ -88,25 +88,37 @@ public class FuseClassTransformer implements IClassTransformer {
 		return null;
 	}
 
-	InsnList removeLastReturnInsn(InsnList instructions){
+	InsnList removeLastReturnInsn(InsnList instructions) {
 		instructions.iterator().forEachRemaining(abstractInsnNode -> {
-			if(abstractInsnNode instanceof InsnNode){
+			if (abstractInsnNode instanceof InsnNode) {
 				//TODO this will break things, need to be done when necceserry (i.e only the last one?
-				if(abstractInsnNode.getOpcode() == Opcodes.RETURN){
+				if (abstractInsnNode.getOpcode() == Opcodes.RETURN) {
 					instructions.remove(abstractInsnNode);
 				}
 			}
-			System.out.println(abstractInsnNode);
 		});
 		return instructions;
 	}
 
+	AbstractInsnNode findLastReturnInsn(InsnList instructions) {
+		final AbstractInsnNode[] returnValue = { null };
+		instructions.iterator().forEachRemaining(abstractInsnNode -> {
+			if (abstractInsnNode instanceof InsnNode) {
+				//TODO this will break things, need to be done when necceserry (i.e only the last one?
+				if (abstractInsnNode.getOpcode() == Opcodes.RETURN) {
+					returnValue[0] = abstractInsnNode;
+				}
+			}
+		});
+		return returnValue[0];
+	}
+
 	//TODO this doesnt feel right at all
-	InsnList injectAfterInsnReturn(InsnList targetList, InsnList sourceList){
+	InsnList injectAfterInsnReturn(InsnList targetList, InsnList sourceList) {
 		AbstractInsnNode lastReturn = null;
-		for(AbstractInsnNode abstractInsnNode : targetList.toArray()){
-			if(abstractInsnNode instanceof InsnNode){
-				if(abstractInsnNode.getOpcode() == Opcodes.RETURN){
+		for (AbstractInsnNode abstractInsnNode : targetList.toArray()) {
+			if (abstractInsnNode instanceof InsnNode) {
+				if (abstractInsnNode.getOpcode() == Opcodes.RETURN) {
 					lastReturn = abstractInsnNode;
 				}
 			}
@@ -116,36 +128,65 @@ public class FuseClassTransformer implements IClassTransformer {
 		return targetList;
 	}
 
-	InsnList renameInstructions(InsnList list, ClassNode mixinNode, ClassNode targetNode){
+	InsnList renameInstructions(InsnList list, ClassNode mixinNode, ClassNode targetNode) {
 		list.iterator().forEachRemaining(abstractInsnNode -> {
-			if(abstractInsnNode instanceof FieldInsnNode){
+			if (abstractInsnNode instanceof FieldInsnNode) {
 				((FieldInsnNode) abstractInsnNode).owner = ((FieldInsnNode) abstractInsnNode).owner.replace(mixinNode.name.replace(".", "/"), targetNode.name.replace(".", "/"));
 			}
-			if(abstractInsnNode instanceof MethodInsnNode){
+			if (abstractInsnNode instanceof MethodInsnNode) {
 				((MethodInsnNode) abstractInsnNode).owner = ((MethodInsnNode) abstractInsnNode).owner.replace(mixinNode.name.replace(".", "/"), targetNode.name.replace(".", "/"));
 			}
 		});
 		return list;
 	}
 
-	AnnotationNode getAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass){
-		if(annotationNodeList == null || annotationNodeList.isEmpty()){
+	InsnList buildConstructorInstructions(ClassNode mixinNode) {
+		InsnList insnList = new InsnList();
+		insnList.add(findTargetMethodNode("<init>", mixinNode).instructions);
+		cleanLableNode(insnList);
+		final boolean[] foundInitCall = { false };
+		insnList.iterator().forEachRemaining(abstractInsnNode -> {
+			if(abstractInsnNode instanceof MethodInsnNode){
+				if(((MethodInsnNode) abstractInsnNode).name.equals("<init>")){
+					foundInitCall[0] = true;
+				}
+			}
+			if (!foundInitCall[0]) {
+				insnList.remove(abstractInsnNode);
+			}
+		});
+
+		return removeLastReturnInsn(insnList);
+	}
+
+	//TODO remove this
+	InsnList cleanLableNode(InsnList insnList) {
+		insnList.iterator().forEachRemaining(abstractInsnNode -> {
+			if (abstractInsnNode instanceof LabelNode || abstractInsnNode instanceof LineNumberNode) {
+				insnList.remove(abstractInsnNode);
+			}
+		});
+		return insnList;
+	}
+
+	AnnotationNode getAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass) {
+		if (annotationNodeList == null || annotationNodeList.isEmpty()) {
 			return null;
 		}
-		for (AnnotationNode node : annotationNodeList){
-			if(node.desc.equals(Type.getDescriptor(annoationClass))){
+		for (AnnotationNode node : annotationNodeList) {
+			if (node.desc.equals(Type.getDescriptor(annoationClass))) {
 				return node;
 			}
 		}
 		return null;
 	}
 
-	boolean hasAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass){
+	boolean hasAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass) {
 		return getAnnoation(annotationNodeList, annoationClass) != null;
 	}
 
-	Object getAnnoationValue(AnnotationNode node, String keyName){
-		for (int i = 0; i < node.values.size() -1; i++) {
+	Object getAnnoationValue(AnnotationNode node, String keyName) {
+		for (int i = 0; i < node.values.size() - 1; i++) {
 			Object key = node.values.get(i);
 			Object value = node.values.get(i + 1);
 			if (key instanceof String && key.equals(keyName)) {
