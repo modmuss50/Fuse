@@ -1,5 +1,6 @@
 package me.modmuss50.fuse;
 
+import me.modmuss50.fuse.api.Inject;
 import me.modmuss50.fuse.api.MethodEdit;
 import net.fabricmc.base.transformer.ASMUtils;
 import net.minecraft.launchwrapper.IClassTransformer;
@@ -46,6 +47,16 @@ public class FuseClassTransformer implements IClassTransformer {
 						}
 
 					}
+				} else if(hasAnnoation(mixinMethodNode.visibleAnnotations, Inject.class)){
+					MethodNode methodInject = new MethodNode(mixinMethodNode.access, mixinMethodNode.name, mixinMethodNode.desc, mixinMethodNode.signature, null);
+					methodInject.exceptions = mixinMethodNode.exceptions;
+					methodInject.instructions = renameInstructions(mixinMethodNode.instructions, mixinNode, targetNode);
+					targetNode.methods.add(methodInject);
+				}
+			}
+			for(FieldNode mixinFieldNode : mixinNode.fields){
+				if(hasAnnoation(mixinFieldNode.visibleAnnotations, Inject.class)){
+					targetNode.fields.add(mixinFieldNode);
 				}
 			}
 		}
@@ -109,6 +120,9 @@ public class FuseClassTransformer implements IClassTransformer {
 		list.iterator().forEachRemaining(abstractInsnNode -> {
 			if(abstractInsnNode instanceof FieldInsnNode){
 				((FieldInsnNode) abstractInsnNode).owner = ((FieldInsnNode) abstractInsnNode).owner.replace(mixinNode.name.replace(".", "/"), targetNode.name.replace(".", "/"));
+			}
+			if(abstractInsnNode instanceof MethodInsnNode){
+				((MethodInsnNode) abstractInsnNode).owner = ((MethodInsnNode) abstractInsnNode).owner.replace(mixinNode.name.replace(".", "/"), targetNode.name.replace(".", "/"));
 			}
 		});
 		return list;
