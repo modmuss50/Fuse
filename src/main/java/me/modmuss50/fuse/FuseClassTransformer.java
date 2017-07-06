@@ -40,9 +40,9 @@ public class FuseClassTransformer implements IClassTransformer {
 					AnnotationNode annotationNode = getAnnoation(mixinMethodNode.visibleAnnotations, MethodEdit.class);
 					if(targetMethodNode != null){
 						if(getAnnoationValue(annotationNode, "location") == MethodEdit.Location.START){
-							targetMethodNode.instructions.insertBefore(findFirstInstruction(targetMethodNode), removeLastReturnInsn(mixinMethodNode.instructions));
+							targetMethodNode.instructions.insertBefore(findFirstInstruction(targetMethodNode), renameInstructions(removeLastReturnInsn(mixinMethodNode.instructions), mixinNode, targetNode));
 						} else {
-							targetMethodNode.instructions = injectAfterInsnReturn(targetMethodNode.instructions, mixinMethodNode.instructions);
+							targetMethodNode.instructions = injectAfterInsnReturn(targetMethodNode.instructions, renameInstructions(mixinMethodNode.instructions, mixinNode, targetNode));
 						}
 
 					}
@@ -103,6 +103,15 @@ public class FuseClassTransformer implements IClassTransformer {
 		targetList.insertBefore(lastReturn, sourceList);
 		targetList.remove(lastReturn);
 		return targetList;
+	}
+
+	InsnList renameInstructions(InsnList list, ClassNode mixinNode, ClassNode targetNode){
+		list.iterator().forEachRemaining(abstractInsnNode -> {
+			if(abstractInsnNode instanceof FieldInsnNode){
+				((FieldInsnNode) abstractInsnNode).owner = ((FieldInsnNode) abstractInsnNode).owner.replace(mixinNode.name.replace(".", "/"), targetNode.name.replace(".", "/"));
+			}
+		});
+		return list;
 	}
 
 	AnnotationNode getAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass){
