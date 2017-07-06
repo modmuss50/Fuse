@@ -38,33 +38,44 @@ public class FuseClassTransformer implements IClassTransformer {
 		for (ClassNode mixinNode : mixinNodes) {
 			for (MethodNode mixinMethodNode : mixinNode.methods) {
 				if (hasAnnoation(mixinMethodNode.visibleAnnotations, MethodEdit.class)) {
-					MethodNode targetMethodNode = findTargetMethodNode(mixinMethodNode.name, targetNode);
+					MethodNode targetMethodNode = findMethodNode(mixinMethodNode.name, targetNode);
 					AnnotationNode annotationNode = getAnnoation(mixinMethodNode.visibleAnnotations, MethodEdit.class);
 					if (targetMethodNode != null) {
 						if (getAnnoationValue(annotationNode, "location") == MethodEdit.Location.START) {
+							//Copys the methods instructions into the start of the class.
 							targetMethodNode.instructions.insertBefore(findFirstInstruction(targetMethodNode), renameInstructions(removeLastReturnInsn(mixinMethodNode.instructions), mixinNode, targetNode));
 						} else {
+							//Copys the mixin method instrcustions just before the last return
 							targetMethodNode.instructions = injectAfterInsnReturn(targetMethodNode.instructions, renameInstructions(mixinMethodNode.instructions, mixinNode, targetNode));
 						}
 
 					}
-				} else if (hasAnnoation(mixinMethodNode.visibleAnnotations, Inject.class)) {
+				} else if (hasAnnoation(mixinMethodNode.visibleAnnotations, Inject.class)) { //Injects methods into the target class
 					MethodNode methodInject = new MethodNode(mixinMethodNode.access, mixinMethodNode.name, mixinMethodNode.desc, mixinMethodNode.signature, null);
 					methodInject.exceptions = mixinMethodNode.exceptions;
 					methodInject.instructions = renameInstructions(mixinMethodNode.instructions, mixinNode, targetNode);
 					targetNode.methods.add(methodInject);
 				}
 			}
+			//Copys all fields with the Inject annoation over
+			//TODO copy the field value over from the constructor
 			for (FieldNode mixinFieldNode : mixinNode.fields) {
 				if (hasAnnoation(mixinFieldNode.visibleAnnotations, Inject.class)) {
 					targetNode.fields.add(mixinFieldNode);
+				}
+			}
+			//Copys the interfaces over to the target
+			for(String mixinInterface : mixinNode.interfaces){
+				if(!targetNode.interfaces.contains(mixinInterface)){
+					targetNode.interfaces.add(mixinInterface);
 				}
 			}
 		}
 		return writeClassToBytes(targetNode);
 	}
 
-	MethodNode findTargetMethodNode(String name, ClassNode targetNode) {
+	//Finds method node in clsss //TODO check desc
+	MethodNode findMethodNode(String name, ClassNode targetNode) {
 		for (MethodNode node : targetNode.methods) {
 			if (node.name.equals(name)) {
 				return node;
@@ -89,18 +100,13 @@ public class FuseClassTransformer implements IClassTransformer {
 		return null;
 	}
 
+	//Removes the last return instuction from the InsnList
 	InsnList removeLastReturnInsn(InsnList instructions) {
-		instructions.iterator().forEachRemaining(abstractInsnNode -> {
-			if (abstractInsnNode instanceof InsnNode) {
-				//TODO this will break things, need to be done when necceserry (i.e only the last one?
-				if (abstractInsnNode.getOpcode() == Opcodes.RETURN) {
-					instructions.remove(abstractInsnNode);
-				}
-			}
-		});
+		instructions.remove(findLastReturnInsn(instructions));
 		return instructions;
 	}
 
+	//Finds the last return InsnNode, is this the right way to do it?
 	AbstractInsnNode findLastReturnInsn(InsnList instructions) {
 		final AbstractInsnNode[] returnValue = { null };
 		instructions.iterator().forEachRemaining(abstractInsnNode -> {
@@ -114,6 +120,7 @@ public class FuseClassTransformer implements IClassTransformer {
 		return returnValue[0];
 	}
 
+	//Injects an InsnList into the end of another InsnList
 	//TODO this doesnt feel right at all
 	InsnList injectAfterInsnReturn(InsnList targetList, InsnList sourceList) {
 		AbstractInsnNode lastReturn = null;
@@ -129,6 +136,7 @@ public class FuseClassTransformer implements IClassTransformer {
 		return targetList;
 	}
 
+	//Renames the method and field calls from the mixin class to the target class
 	InsnList renameInstructions(InsnList list, ClassNode mixinNode, ClassNode targetNode) {
 		list.iterator().forEachRemaining(abstractInsnNode -> {
 			if (abstractInsnNode instanceof FieldInsnNode) {
@@ -141,9 +149,11 @@ public class FuseClassTransformer implements IClassTransformer {
 		return list;
 	}
 
+	//My amtempt at building an InsnList for the field values
+	//TODO fix me
 	InsnList buildConstructorInstructions(ClassNode mixinNode) {
 		InsnList insnList = new InsnList();
-		insnList.add(findTargetMethodNode("<init>", mixinNode).instructions);
+		insnList.add(findMethodNode("<init>", mixinNode).instructions);
 		cleanLableNode(insnList);
 		final boolean[] foundInitCall = { false };
 		insnList.iterator().forEachRemaining(abstractInsnNode -> {
@@ -160,7 +170,7 @@ public class FuseClassTransformer implements IClassTransformer {
 		return removeLastReturnInsn(insnList);
 	}
 
-	//TODO remove this
+	//I dont even think this is a good idea, so I should remove it
 	InsnList cleanLableNode(InsnList insnList) {
 		insnList.iterator().forEachRemaining(abstractInsnNode -> {
 			if (abstractInsnNode instanceof LabelNode || abstractInsnNode instanceof LineNumberNode) {
@@ -170,6 +180,7 @@ public class FuseClassTransformer implements IClassTransformer {
 		return insnList;
 	}
 
+	//Gets an annoation
 	AnnotationNode getAnnoation(List<AnnotationNode> annotationNodeList, Class annoationClass) {
 		if (annotationNodeList == null || annotationNodeList.isEmpty()) {
 			return null;
@@ -186,6 +197,7 @@ public class FuseClassTransformer implements IClassTransformer {
 		return getAnnoation(annotationNodeList, annoationClass) != null;
 	}
 
+	//Gets the value for an annoation
 	Object getAnnoationValue(AnnotationNode node, String keyName) {
 		for (int i = 0; i < node.values.size() - 1; i++) {
 			Object key = node.values.get(i);
